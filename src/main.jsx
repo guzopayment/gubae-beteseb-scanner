@@ -439,7 +439,10 @@ function Scanner() {
       setResult(r.data);
       await loadSummary();
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to record attendance");
+      setError(
+        err.response?.data?.message ||
+          "Unable to record attendance | የተገኘ ምንባብ ማስመዝገብ አልቻለም",
+      );
     } finally {
       setTimeout(() => {
         processingRef.current = false;
@@ -464,7 +467,7 @@ function Scanner() {
       setScanning(true);
     } catch (e) {
       setError(
-        "Camera could not start. Allow camera permission and open the scanner using HTTPS (or localhost).",
+        "Camera could not start. Allow camera permission and open the scanner using phone camera (or laptop camera ).| ካሜራ ሊጀምር አልቻለም። ካሜራ ፈቃድ ይፈቀዱ እና ስካነሩን በስልክዎ ካሜራ (ወይም ላፕቶ ካሜራ) ይክፈቱ.",
       );
     }
   };
@@ -498,7 +501,7 @@ function Scanner() {
       <header>
         <div>
           <h1>Gubae Attendance</h1>
-          <span>Participant QR Scanner</span>
+          <span>Participant QR Scanner | ተሳታፊዎች ኪውአር ስካነር </span>
         </div>
         <button className="ghost" onClick={logout}>
           <LogOut size={17} /> Logout
@@ -511,18 +514,19 @@ function Scanner() {
             <div id="qr-reader"></div>
             {!scanning && (
               <button onClick={start}>
-                <ScanLine size={20} /> Start Camera Scanner
+                <ScanLine size={20} /> Start Camera Scanner | ካሜራ ስካነር ይጀምሩ
               </button>
             )}
             {scanning && (
               <button className="danger" onClick={stop}>
-                <RefreshCw size={18} /> Stop Scanner
+                <RefreshCw size={18} /> Stop Scanner | ስካነሩን ይቆሙ
               </button>
             )}
             <p className="hint">
               Show the participant's QR code inside the square. The scanner
               reads the QR token and verifies it against the registered
-              participants.
+              participants. | ተሳታፊዎች የተመዘገቡ ኪውአር ኮድ ያሳዩ። ኪውአር ኮድ የተመዘገቡ ተሳታፊዎችን
+              ይምረጣል።
             </p>
           </div>
 
@@ -532,7 +536,7 @@ function Scanner() {
                 {result.alreadyCheckedIn ? (
                   <RefreshCw className="warningIcon" size={54} />
                 ) : (
-                  <CheckCircle2 className="successIcon" size={54} />
+                  <CheckCircle2 className="successIcon " size={54} />
                 )}
                 <h2>
                   {result.alreadyCheckedIn ? "Already Present" : "Present ✓"}
@@ -546,16 +550,17 @@ function Scanner() {
               </>
             ) : error ? (
               <>
-                <XCircle className="errorIcon" size={54} />
-                <h2>Scan Not Accepted</h2>
+                <XCircle className="errorIcon text-red-500" size={54} />
+                <h2>Scan Not Accepted | ምንባብ አልተቀበለም </h2>
                 <p>{error}</p>
               </>
             ) : (
               <>
                 <Users size={48} />
-                <h2>Ready to scan</h2>
+                <h2>Ready to scan | ለምንባብ ተዘጋጅቷል </h2>
                 <p>
                   Scan a registered participant's QR code to mark them present.
+                  | የተመዘገቡ ተሳታፊዎችን ለመምረጥ የተመዘገቡ ተሳታፊዎችን የሚያሳይ ኪውአር ኮድ ያስነብቡ።
                 </p>
               </>
             )}
@@ -565,7 +570,7 @@ function Scanner() {
         <section className="card summary">
           <div className="summaryHead">
             <div>
-              <h2>Live Attendance Summary</h2>
+              <h2>Live Attendance Summary | ላይቭ የተገኙ ጥቅል ማሳያ </h2>
               <p className="summaryHint">
                 Download the complete Present/Absent list after the event.
               </p>
@@ -584,23 +589,23 @@ function Scanner() {
               <div className="stats">
                 <div>
                   <b>{summary.total}</b>
-                  <span>Registered</span>
+                  <span>Registered | የተመዘገበ </span>
                 </div>
                 <div>
                   <b>{summary.totalPresent}</b>
-                  <span>Present</span>
+                  <span>Present | የተገኘ </span>
                 </div>
                 <div>
                   <b>{summary.totalAbsent}</b>
-                  <span>Absent</span>
+                  <span>Absent | የተቀረ </span>
                 </div>
                 <div>
                   <b>{summary.men}</b>
-                  <span>Men Present</span>
+                  <span>Men Present | የተገኙ ወንዶች </span>
                 </div>
                 <div>
                   <b>{summary.women}</b>
-                  <span>Women Present</span>
+                  <span>Women Present | የተገኙ ሴቶች </span>
                 </div>
               </div>
 
