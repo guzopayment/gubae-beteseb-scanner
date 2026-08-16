@@ -85,6 +85,10 @@ function Scanner() {
   const [summary, setSummary] = useState(null);
   const [scanning, setScanning] = useState(false);
 
+  // paginaion
+  const [orgPage, setOrgPage] = useState(1);
+  const ORG_PAGE_SIZE = 10;
+
   const stop = async () => {
     if (scannerRef.current && runningRef.current) {
       try {
@@ -411,6 +415,7 @@ function Scanner() {
     try {
       const r = await api.get("/bookings/attendance/summary");
       setSummary(r.data);
+      setOrgPage(1); // Reset to first page when summary is loaded
     } catch (err) {
       if (err.response?.status === 401) logout();
       else
@@ -470,6 +475,23 @@ function Scanner() {
       stop();
     };
   }, []);
+  // table pagination
+  const organizations = summary?.byOrganization || [];
+
+  const totalOrgPages = Math.max(
+    1,
+    Math.ceil(organizations.length / ORG_PAGE_SIZE),
+  );
+
+  const paginatedOrganizations = organizations.slice(
+    (orgPage - 1) * ORG_PAGE_SIZE,
+    orgPage * ORG_PAGE_SIZE,
+  );
+
+  const orgStart =
+    organizations.length === 0 ? 0 : (orgPage - 1) * ORG_PAGE_SIZE + 1;
+
+  const orgEnd = Math.min(orgPage * ORG_PAGE_SIZE, organizations.length);
 
   return (
     <div className="page">
@@ -581,7 +603,8 @@ function Scanner() {
                   <span>Women Present</span>
                 </div>
               </div>
-              <h3>Present by Organization</h3>
+
+              {/* <h3>Present by Organization</h3>
               <div className="tableWrap">
                 <table>
                   <thead>
@@ -603,7 +626,84 @@ function Scanner() {
                     ))}
                   </tbody>
                 </table>
+              </div> */}
+              <h3>Present by Organization</h3>
+
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Organization</th>
+                      <th>Present</th>
+                      <th>Men</th>
+                      <th>Women</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {paginatedOrganizations.length > 0 ? (
+                      paginatedOrganizations.map((r) => (
+                        <tr key={r.organization}>
+                          <td>{r.organization}</td>
+                          <td>{r.total}</td>
+                          <td>{r.men}</td>
+                          <td>{r.women}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: "center" }}>
+                          No organization data available
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
+
+              {organizations.length > 0 && (
+                <div className="pagination">
+                  <div className="paginationInfo">
+                    Showing {orgStart}–{orgEnd} of {organizations.length}{" "}
+                    organizations
+                  </div>
+
+                  <div className="paginationControls">
+                    <button
+                      className="small"
+                      disabled={orgPage === 1}
+                      onClick={() => setOrgPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+
+                    {Array.from(
+                      { length: totalOrgPages },
+                      (_, index) => index + 1,
+                    ).map((page) => (
+                      <button
+                        key={page}
+                        className={`pageButton ${
+                          orgPage === page ? "active" : ""
+                        }`}
+                        onClick={() => setOrgPage(page)}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      className="small"
+                      disabled={orgPage === totalOrgPages}
+                      onClick={() =>
+                        setOrgPage((p) => Math.min(totalOrgPages, p + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </section>
