@@ -519,14 +519,14 @@ function Scanner() {
             )}
             {scanning && (
               <button className="danger" onClick={stop}>
-                <RefreshCw size={18} /> Stop Scanner | ስካነሩን ይቆሙ
+                <RefreshCw size={18} /> Stop Scanner | ስካነሩን ያስቁሙ
               </button>
             )}
             <p className="hint">
               Show the participant's QR code inside the square. The scanner
               reads the QR token and verifies it against the registered
-              participants. | ተሳታፊዎች የተመዘገቡ ኪውአር ኮድ ያሳዩ። ኪውአር ኮድ የተመዘገቡ ተሳታፊዎችን
-              ይምረጣል።
+              participants. | ተሳታፊዎች የተመዘገቡ ኪውአር ኮድ ያሳዩ። ኪውአር ኮድ አንባቢው የተመዘገቡ
+              ተሳታፊዎችን ይመርጣል።
             </p>
           </div>
 
