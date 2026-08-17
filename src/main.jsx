@@ -84,10 +84,61 @@ function Scanner() {
   const [error, setError] = useState("");
   const [summary, setSummary] = useState(null);
   const [scanning, setScanning] = useState(false);
-
-  // paginaion
   const [orgPage, setOrgPage] = useState(1);
-  const ORG_PAGE_SIZE = 10;
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPhrase, setResetPhrase] = useState("");
+  const [resetCount, setResetCount] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
+  const audioContextRef = useRef(null);
+
+  const vibrateRejected = () => {
+    try {
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.vibrate === "function"
+      ) {
+        navigator.vibrate([180, 90, 180]);
+      }
+    } catch (vibrationError) {
+      console.warn("Scanner vibration unavailable", vibrationError);
+    }
+  };
+
+  const playScanSound = (accepted = true) => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = audioContextRef.current || new AudioCtx();
+      audioContextRef.current = ctx;
+      if (ctx.state === "suspended") ctx.resume();
+
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      if (accepted) {
+        oscillator.frequency.setValueAtTime(880, now);
+        oscillator.frequency.setValueAtTime(1320, now + 0.09);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.28, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        oscillator.start(now);
+        oscillator.stop(now + 0.24);
+      } else {
+        oscillator.frequency.setValueAtTime(240, now);
+        oscillator.frequency.setValueAtTime(170, now + 0.12);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.32, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+        oscillator.start(now);
+        oscillator.stop(now + 0.32);
+      }
+    } catch (soundError) {
+      console.warn("Scanner sound unavailable", soundError);
+    }
+  };
 
   const stop = async () => {
     if (scannerRef.current && runningRef.current) {
@@ -102,6 +153,41 @@ function Scanner() {
     setScanning(false);
   };
 
+  const resetAttendance = async () => {
+    if (resetPhrase !== "RESET ATTENDANCE") {
+      setError('For safety, type exactly "RESET ATTENDANCE".');
+      return;
+    }
+    if (String(resetCount) !== String(summary?.totalPresent ?? "")) {
+      setError(
+        `For safety, enter the current Present count exactly: ${summary?.totalPresent ?? 0}`,
+      );
+      return;
+    }
+
+    setResetBusy(true);
+    setError("");
+    try {
+      const r = await api.post("/bookings/attendance/reset", {
+        confirmation: resetPhrase,
+        expectedPresent: Number(resetCount),
+      });
+      setResult(null);
+      setResetOpen(false);
+      setResetPhrase("");
+      setResetCount("");
+      setError("");
+      await loadSummary();
+      alert(r.data?.message || "Attendance reset successfully.");
+    } catch (err) {
+      if (err.response?.status === 401) logout();
+      else
+        setError(err.response?.data?.message || "Unable to reset attendance");
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
   const downloadAttendanceList = async () => {
     setError("");
     try {
@@ -113,6 +199,33 @@ function Scanner() {
         r.data?.present ??
         rows.filter((row) => row.status === "Present").length;
       const absent = r.data?.absent ?? total - present;
+
+      const organizationMap = new Map();
+      rows.forEach((row) => {
+        const organization =
+          String(row.organization || "Unknown").trim() || "Unknown";
+        if (!organizationMap.has(organization)) {
+          organizationMap.set(organization, {
+            organization,
+            totalRegistered: 0,
+            totalPresent: 0,
+            totalAbsent: 0,
+            men: 0,
+            women: 0,
+          });
+        }
+        const item = organizationMap.get(organization);
+        item.totalRegistered += 1;
+        if (String(row.status).toLowerCase() === "present")
+          item.totalPresent += 1;
+        else item.totalAbsent += 1;
+        const sex = String(row.sex || "")
+          .trim()
+          .toLowerCase();
+        if (sex === "male" || sex === "ወንድ") item.men += 1;
+        if (sex === "female" || sex === "ሴት") item.women += 1;
+      });
+      const organizationRows = Array.from(organizationMap.values());
 
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Gubae Attendance System";
@@ -316,7 +429,7 @@ function Scanner() {
           paperSize: 9,
         },
       });
-      orgSheet.mergeCells("A1:D1");
+      orgSheet.mergeCells("A1:F1");
       orgSheet.getCell("A1").value = "ATTENDANCE BY ORGANIZATION";
       orgSheet.getCell("A1").font = {
         name: "Aptos Display",
@@ -334,7 +447,7 @@ function Scanner() {
         fgColor: { argb: "003B46" },
       };
       orgSheet.getRow(1).height = 32;
-      orgSheet.mergeCells("A2:D2");
+      orgSheet.mergeCells("A2:F2");
       orgSheet.getCell("A2").value =
         `Present: ${present} | Absent: ${absent} | Total Registered: ${total}`;
       orgSheet.getCell("A2").alignment = { horizontal: "center" };
@@ -343,7 +456,14 @@ function Scanner() {
         size: 10,
         color: { argb: "555555" },
       };
-      orgSheet.getRow(4).values = ["Organization", "Present", "Men", "Women"];
+      orgSheet.getRow(4).values = [
+        "Organization",
+        "Registered",
+        "Present",
+        "Absent",
+        "Men",
+        "Women",
+      ];
       orgSheet.getRow(4).eachCell((cell) => {
         cell.font = {
           name: "Aptos",
@@ -358,10 +478,12 @@ function Scanner() {
         };
         cell.alignment = { horizontal: "center", vertical: "middle" };
       });
-      (r.data?.byOrganization || []).forEach((item, index) => {
+      organizationRows.forEach((item, index) => {
         const rr = orgSheet.addRow([
           item.organization,
-          item.total,
+          item.totalRegistered,
+          item.totalPresent,
+          item.totalAbsent,
           item.men,
           item.women,
         ]);
@@ -380,12 +502,14 @@ function Scanner() {
       });
       orgSheet.autoFilter = {
         from: "A4",
-        to: `D${4 + (r.data?.byOrganization || []).length}`,
+        to: `F${4 + organizationRows.length}`,
       };
       orgSheet.getColumn(1).width = 42;
       orgSheet.getColumn(2).width = 14;
       orgSheet.getColumn(3).width = 14;
       orgSheet.getColumn(4).width = 14;
+      orgSheet.getColumn(5).width = 14;
+      orgSheet.getColumn(6).width = 14;
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
@@ -415,7 +539,7 @@ function Scanner() {
     try {
       const r = await api.get("/bookings/attendance/summary");
       setSummary(r.data);
-      setOrgPage(1); // Reset to first page when summary is loaded
+      setOrgPage(1);
     } catch (err) {
       if (err.response?.status === 401) logout();
       else
@@ -424,6 +548,19 @@ function Scanner() {
         );
     }
   };
+
+  const organizations = summary?.byOrganization || [];
+  const ORG_PAGE_SIZE = 10;
+  const totalOrgPages = Math.max(
+    1,
+    Math.ceil(organizations.length / ORG_PAGE_SIZE),
+  );
+  const paginatedOrganizations = organizations.slice(
+    (orgPage - 1) * ORG_PAGE_SIZE,
+    orgPage * ORG_PAGE_SIZE,
+  );
+  const orgStart = organizations.length ? (orgPage - 1) * ORG_PAGE_SIZE + 1 : 0;
+  const orgEnd = Math.min(orgPage * ORG_PAGE_SIZE, organizations.length);
 
   const handleScan = async (decodedText) => {
     if (processingRef.current) return;
@@ -436,12 +573,15 @@ function Scanner() {
       const r = await api.post("/bookings/attendance/scan", {
         qrData: decodedText,
       });
+      playScanSound(true);
       setResult(r.data);
       await loadSummary();
     } catch (err) {
+      playScanSound(false);
+      vibrateRejected();
       setError(
         err.response?.data?.message ||
-          "Unable to record attendance | የተገኘ ምንባብ ማስመዝገብ አልቻለም",
+          "Unable to record attendance | ተሳትፎ መመዝገብ አልተቻለም",
       );
     } finally {
       setTimeout(() => {
@@ -452,6 +592,14 @@ function Scanner() {
 
   const start = async () => {
     setResult(null);
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        audioContextRef.current = audioContextRef.current || new AudioCtx();
+        if (audioContextRef.current.state === "suspended")
+          await audioContextRef.current.resume();
+      }
+    } catch {}
     setError("");
     try {
       await stop();
@@ -467,7 +615,7 @@ function Scanner() {
       setScanning(true);
     } catch (e) {
       setError(
-        "Camera could not start. Allow camera permission and open the scanner using phone camera (or laptop camera ).| ካሜራ ሊጀምር አልቻለም። ካሜራ ፈቃድ ይፈቀዱ እና ስካነሩን በስልክዎ ካሜራ (ወይም ላፕቶ ካሜራ) ይክፈቱ.",
+        "Camera could not start. Allow camera permission and open the scanner using Phone (or computer). ካሜራው መጀመር አልቻለም! ስካነሩ የልክዎን ወይም የኮምፒውተርዎን ካሜራ እንዲጠቀም ፍቃድ ይስጡ",
       );
     }
   };
@@ -476,32 +624,18 @@ function Scanner() {
     loadSummary();
     return () => {
       stop();
+      try {
+        audioContextRef.current?.close();
+      } catch {}
     };
   }, []);
-  // table pagination
-  const organizations = summary?.byOrganization || [];
-
-  const totalOrgPages = Math.max(
-    1,
-    Math.ceil(organizations.length / ORG_PAGE_SIZE),
-  );
-
-  const paginatedOrganizations = organizations.slice(
-    (orgPage - 1) * ORG_PAGE_SIZE,
-    orgPage * ORG_PAGE_SIZE,
-  );
-
-  const orgStart =
-    organizations.length === 0 ? 0 : (orgPage - 1) * ORG_PAGE_SIZE + 1;
-
-  const orgEnd = Math.min(orgPage * ORG_PAGE_SIZE, organizations.length);
 
   return (
     <div className="page">
       <header>
         <div>
           <h1>Gubae Attendance</h1>
-          <span>Participant QR Scanner | ተሳታፊዎች ኪውአር ስካነር </span>
+          <span>Participant QR Scanner | የተሳታፊዎች QR ማንበቢያ </span>
         </div>
         <button className="ghost" onClick={logout}>
           <LogOut size={17} /> Logout
@@ -514,19 +648,18 @@ function Scanner() {
             <div id="qr-reader"></div>
             {!scanning && (
               <button onClick={start}>
-                <ScanLine size={20} /> Start Camera Scanner | ካሜራ ስካነር ይጀምሩ
+                <ScanLine size={20} /> Start Camera Scanner | ካሜራውን ያስጀምሩ
               </button>
             )}
             {scanning && (
               <button className="danger" onClick={stop}>
-                <RefreshCw size={18} /> Stop Scanner | ስካነሩን ያስቁሙ
+                <RefreshCw size={18} /> Stop Scanner | ምንባቡን ያስቁሙ
               </button>
             )}
             <p className="hint">
               Show the participant's QR code inside the square. The scanner
               reads the QR token and verifies it against the registered
-              participants. | ተሳታፊዎች የተመዘገቡ ኪውአር ኮድ ያሳዩ። ኪውአር ኮድ አንባቢው የተመዘገቡ
-              ተሳታፊዎችን ይመርጣል።
+              participants.|
             </p>
           </div>
 
@@ -536,7 +669,7 @@ function Scanner() {
                 {result.alreadyCheckedIn ? (
                   <RefreshCw className="warningIcon" size={54} />
                 ) : (
-                  <CheckCircle2 className="successIcon " size={54} />
+                  <CheckCircle2 className="successIcon" size={54} />
                 )}
                 <h2>
                   {result.alreadyCheckedIn ? "Already Present" : "Present ✓"}
@@ -550,17 +683,21 @@ function Scanner() {
               </>
             ) : error ? (
               <>
-                <XCircle className="errorIcon text-red-500" size={54} />
-                <h2>Scan Not Accepted | ምንባብ አልተቀበለም </h2>
+                <XCircle
+                  className="errorIcon "
+                  // style={{ textDecoration: "red" }}
+                  size={54}
+                />
+                <h2>Scan Not Accepted | ምንባብ ተቀባይነት አላገኘም </h2>
                 <p>{error}</p>
               </>
             ) : (
               <>
                 <Users size={48} />
-                <h2>Ready to scan | ለምንባብ ተዘጋጅቷል </h2>
+                <h2>Ready to scan | ለምንባብ ዝግጁ ነው </h2>
                 <p>
                   Scan a registered participant's QR code to mark them present.
-                  | የተመዘገቡ ተሳታፊዎችን ለመምረጥ የተመዘገቡ ተሳታፊዎችን የሚያሳይ ኪውአር ኮድ ያስነብቡ።
+                  | የተመዘገቡ ተሳታፊዎችን QR ኮድ አስነብብ እንደተገኙ ምልክት ለማድረግ እና ለመመዝገብ{" "}
                 </p>
               </>
             )}
@@ -570,7 +707,7 @@ function Scanner() {
         <section className="card summary">
           <div className="summaryHead">
             <div>
-              <h2>Live Attendance Summary | ላይቭ የተገኙ ጥቅል ማሳያ </h2>
+              <h2>Live Attendance Summary | ጥቅላ የተገኙ አባላት ላይቭ</h2>
               <p className="summaryHint">
                 Download the complete Present/Absent list after the event.
               </p>
@@ -582,6 +719,17 @@ function Scanner() {
               <button className="downloadBtn" onClick={downloadAttendanceList}>
                 <Download size={15} /> Download Attendance List
               </button>
+              <button
+                className="resetBtn"
+                onClick={() => {
+                  setResetOpen(true);
+                  setResetPhrase("");
+                  setResetCount("");
+                  setError("");
+                }}
+              >
+                Reset Test Attendance{" "}
+              </button>
             </div>
           </div>
           {summary && (
@@ -589,15 +737,15 @@ function Scanner() {
               <div className="stats">
                 <div>
                   <b>{summary.total}</b>
-                  <span>Registered | የተመዘገበ </span>
+                  <span>Registered | የተመዘገቡ </span>
                 </div>
                 <div>
                   <b>{summary.totalPresent}</b>
-                  <span>Present | የተገኘ </span>
+                  <span>Present | የተገኙ </span>
                 </div>
                 <div>
                   <b>{summary.totalAbsent}</b>
-                  <span>Absent | የተቀረ </span>
+                  <span>Absent | የቀሩ </span>
                 </div>
                 <div>
                   <b>{summary.men}</b>
@@ -608,20 +756,19 @@ function Scanner() {
                   <span>Women Present | የተገኙ ሴቶች </span>
                 </div>
               </div>
-
-              {/* <h3>Present by Organization</h3>
+              <h3>Present by Organization | በድርጅት የተገኙት </h3>
               <div className="tableWrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Organization</th>
-                      <th>Present</th>
-                      <th>Men</th>
-                      <th>Women</th>
+                      <th>Organization | ድርጅት </th>
+                      <th>Present | የተገኙ </th>
+                      <th>Men | ወንዶች </th>
+                      <th>Women | ሴቶች </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {summary.byOrganization?.map((r) => (
+                    {paginatedOrganizations.map((r) => (
                       <tr key={r.organization}>
                         <td>{r.organization}</td>
                         <td>{r.total}</td>
@@ -631,48 +778,13 @@ function Scanner() {
                     ))}
                   </tbody>
                 </table>
-              </div> */}
-              <h3>Present by Organization</h3>
-
-              <div className="tableWrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Organization</th>
-                      <th>Present</th>
-                      <th>Men</th>
-                      <th>Women</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {paginatedOrganizations.length > 0 ? (
-                      paginatedOrganizations.map((r) => (
-                        <tr key={r.organization}>
-                          <td>{r.organization}</td>
-                          <td>{r.total}</td>
-                          <td>{r.men}</td>
-                          <td>{r.women}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" style={{ textAlign: "center" }}>
-                          No organization data available
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
               </div>
-
               {organizations.length > 0 && (
                 <div className="pagination">
                   <div className="paginationInfo">
                     Showing {orgStart}–{orgEnd} of {organizations.length}{" "}
                     organizations
                   </div>
-
                   <div className="paginationControls">
                     <button
                       className="small"
@@ -681,22 +793,17 @@ function Scanner() {
                     >
                       Previous
                     </button>
-
-                    {Array.from(
-                      { length: totalOrgPages },
-                      (_, index) => index + 1,
-                    ).map((page) => (
-                      <button
-                        key={page}
-                        className={`pageButton ${
-                          orgPage === page ? "active" : ""
-                        }`}
-                        onClick={() => setOrgPage(page)}
-                      >
-                        {page}
-                      </button>
-                    ))}
-
+                    {Array.from({ length: totalOrgPages }, (_, i) => i + 1).map(
+                      (pageNumber) => (
+                        <button
+                          key={pageNumber}
+                          className={`pageButton ${orgPage === pageNumber ? "active" : ""}`}
+                          onClick={() => setOrgPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </button>
+                      ),
+                    )}
                     <button
                       className="small"
                       disabled={orgPage === totalOrgPages}
@@ -712,6 +819,63 @@ function Scanner() {
             </>
           )}
         </section>
+
+        {resetOpen && (
+          <div className="resetOverlay" role="dialog" aria-modal="true">
+            <div className="resetModal">
+              <h2>Reset Test Attendance</h2>
+              <p>
+                This permanently clears the current attendance check-ins for all
+                participants. Use this only before the real event.
+              </p>
+              <div className="resetWarning">
+                Current Present count:{" "}
+                <strong>{summary?.totalPresent ?? 0}</strong>
+              </div>
+              <label>
+                Type <strong>RESET ATTENDANCE</strong>
+              </label>
+              <input
+                value={resetPhrase}
+                onChange={(e) => setResetPhrase(e.target.value)}
+                placeholder="RESET ATTENDANCE"
+                autoComplete="off"
+              />
+              <label>
+                Enter the current Present count:{" "}
+                <strong>{summary?.totalPresent ?? 0}</strong>
+              </label>
+              <input
+                value={resetCount}
+                onChange={(e) =>
+                  setResetCount(e.target.value.replace(/\D/g, ""))
+                }
+                inputMode="numeric"
+                placeholder={String(summary?.totalPresent ?? 0)}
+              />
+              <div className="resetActions">
+                <button
+                  className="small"
+                  disabled={resetBusy}
+                  onClick={() => setResetOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="resetConfirm"
+                  disabled={
+                    resetBusy ||
+                    resetPhrase !== "RESET ATTENDANCE" ||
+                    String(resetCount) !== String(summary?.totalPresent ?? "")
+                  }
+                  onClick={resetAttendance}
+                >
+                  {resetBusy ? "Resetting…" : "Confirm Reset"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

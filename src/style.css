@@ -211,57 +211,6 @@ td {
 .login button {
   margin-top: 8px;
 }
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #e5e7eb;
-  flex-wrap: wrap;
-}
-
-.paginationInfo {
-  color: #64748b;
-  font-size: 14px;
-}
-
-.paginationControls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.paginationControls button {
-  min-width: 38px;
-}
-
-.paginationControls button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.pageButton {
-  border: 1px solid #d5dde0;
-  background: white;
-  color: #334155;
-  border-radius: 6px;
-  padding: 7px 11px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.pageButton:hover {
-  background: #f1f5f5;
-}
-
-.pageButton.active {
-  background: #006d77;
-  color: white;
-  border-color: #006d77;
-}
 @media (max-width: 800px) {
   .summaryHead {
     align-items: flex-start;
@@ -289,4 +238,125 @@ td {
   .page main {
     padding: 10px;
   }
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+.paginationInfo {
+  color: #64748b;
+  font-size: 14px;
+}
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.paginationControls button {
+  min-width: 38px;
+}
+.paginationControls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pageButton {
+  border: 1px solid #d5dde0;
+  background: white;
+  color: #334155;
+  border-radius: 6px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.pageButton:hover {
+  background: #f1f5f5;
+}
+.pageButton.active {
+  background: #006d77;
+  color: white;
+  border-color: #006d77;
+}
+.resetBtn {
+  background: #b91c1c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.resetBtn:hover {
+  background: #991b1b;
+}
+.resetOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+.resetModal {
+  width: min(520px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.3);
+}
+.resetModal h2 {
+  margin: 0 0 8px;
+  color: #991b1b;
+}
+.resetModal p {
+  color: #475569;
+  line-height: 1.55;
+}
+.resetModal label {
+  display: block;
+  margin: 16px 0 7px;
+  color: #334155;
+  font-size: 14px;
+}
+.resetModal input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 15px;
+}
+.resetWarning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 14px 0;
+}
+.resetActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.resetConfirm {
+  background: #b91c1c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 15px;
+  font-weight: 700;
+}
+.resetConfirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
