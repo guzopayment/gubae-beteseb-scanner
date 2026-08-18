@@ -736,7 +736,7 @@ function Scanner() {
             <>
               <div className="stats">
                 <div>
-                  <b>{summary.total}</b>
+                  <b>{summary.totalRegistered}</b>
                   <span>Registered | የተመዘገቡ </span>
                 </div>
                 <div>
